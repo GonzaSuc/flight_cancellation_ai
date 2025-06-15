@@ -11,6 +11,8 @@ from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, recall_score, f1_score, log_loss
 
 # Leer datos
 df = pd.read_csv("data/processed/estado_vuelos.csv")
@@ -87,3 +89,34 @@ plt.ylabel("Actual")
 plt.title("Confusion Matrix - Stacking Classifier")
 plt.tight_layout()
 plt.show()
+
+# Lista de modelos individuales + stacking
+modelos = {
+    "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42),
+    "Gradient Boosting": GradientBoostingClassifier(n_estimators=100, random_state=42),
+    "KNN": KNeighborsClassifier(n_neighbors=5),
+    "Logistic Regression": LogisticRegression(max_iter=1000),
+    "XGBoost (meta-model)": XGBClassifier(use_label_encoder=False, eval_metric='mlogloss'),
+    "Stacking Classifier": stack_model  # Ya está entrenado
+}
+
+# Crear tabla
+print("📊 Tabla de métricas del modelo:\n")
+print(f"{'Modelo':<22} | {'Precisión':<10} | {'Sensibilidad':<12} | {'F1-score':<10} | {'Pérdida':<8}")
+print("-" * 75)
+
+for nombre, modelo in modelos.items():
+    if nombre != "Stacking Classifier":
+        modelo.fit(X_train, y_train)
+        pred = modelo.predict(X_test)
+        prob = modelo.predict_proba(X_test)
+    else:
+        pred = y_pred  # ya calculado anteriormente
+        prob = stack_model.predict_proba(X_test)
+
+    acc = accuracy_score(y_test, pred)
+    recall = recall_score(y_test, pred, average='weighted')
+    f1 = f1_score(y_test, pred, average='weighted')
+    loss = log_loss(y_test, prob)
+
+    print(f"{nombre:<22} | {acc:<10.6f} | {recall:<12.6f} | {f1:<10.6f} | {loss:<8.6f}")
