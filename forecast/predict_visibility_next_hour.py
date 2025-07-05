@@ -1,65 +1,47 @@
+# forecast/predict_visibility_next_hour.py
+
 import pandas as pd
 import joblib
+from sklearn.preprocessing import StandardScaler
 import os
-from datetime import datetime
 
-# Rutas
-CORPAC_AVWX_FILE = "data/processed/cleaned_weather_data.csv"
-OPENMETEO_FILE = "data/processed/cleaned_openmeteo_data.csv"
+# Rutas de archivos
 MODEL_FILE = "forecast/models/stacked_visibility_model.pkl"
 SCALER_FILE = "forecast/models/visibility_scaler.pkl"
-OUTPUT_FILE = "forecast/predicted_visibility.csv"
-
-# Validaciones
-for f in [CORPAC_AVWX_FILE, OPENMETEO_FILE, MODEL_FILE, SCALER_FILE]:
-    if not os.path.exists(f):
-        raise FileNotFoundError(f"❌ Archivo faltante: {f}")
-
-# Cargar datasets
-df_metar = pd.read_csv(CORPAC_AVWX_FILE)
-df_metar['datetime'] = pd.to_datetime(df_metar['datetime'], errors='coerce')
-df_metar = df_metar.dropna(subset=["datetime"])
-
-df_openmeteo = pd.read_csv(OPENMETEO_FILE, parse_dates=["datetime"])
-
-# Filtrar observaciones de HOY desde AVWX/CORPAC
-hoy = datetime.now().date()
-df_hoy = df_metar[df_metar['datetime'].dt.date == hoy]
-
-# Tomar la última observación real de hoy por estación
-df_actual = df_hoy.sort_values("datetime").groupby("station").tail(1).copy()
-
-if df_actual.empty:
-    raise ValueError("❌ No se encontraron datos de AVWX/CORPAC con fecha de hoy.")
-
-# Vincular con datos meteorológicos de OpenMeteo por cercanía de fecha/hora
-df = pd.merge_asof(
-    df_actual.sort_values("datetime"),
-    df_openmeteo.sort_values("datetime"),
-    on="datetime",
-    by="station",
-    direction="nearest",
-    tolerance=pd.Timedelta("1H")
-)
-
-if df.empty:
-    raise ValueError("❌ No se pudieron alinear datos de OpenMeteo con observaciones actuales.")
-
-# Features para predicción
-features = ['temperature_2m', 'dew_point_2m', 'cloudcover', 'windspeed_10m',
-            'windgusts_10m', 'precipitation', 'pressure_msl']
-
-X = df[features]
+INPUT_FILE = "data/processed/cleaned_weather_data.csv"
+OUTPUT_FILE = "forecast/output/visibility_forecast.csv"
+os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
 
 # Cargar modelo y scaler
-scaler = joblib.load(SCALER_FILE)
 model = joblib.load(MODEL_FILE)
+scaler = joblib.load(SCALER_FILE)
 
-X_scaled = scaler.transform(X)
+# Leer datos
+df = pd.read_csv(INPUT_FILE)
+df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
+df = df.sort_values(by=['station', 'datetime'])
+
+# Reemplazar y convertir columnas necesarias
+df['wind_dir'] = df['wind_dir'].replace('VRB', 0)
+df['wind_dir'] = pd.to_numeric(df['wind_dir'], errors='coerce')
+df['wind_speed'] = pd.to_numeric(df['wind_speed'], errors='coerce')
+df['visibility'] = pd.to_numeric(df['visibility'], errors='coerce')
+
+# Eliminar nulos
+df.dropna(subset=['station', 'datetime', 'wind_dir', 'wind_speed', 'visibility'], inplace=True)
+
+# Tomar solo el último registro por estación para predecir visibilidad t+1
+latest = df.groupby('station').tail(1).copy()
+
+# Features
+features = ['wind_dir', 'wind_speed', 'visibility']
+X_latest = latest[features]
+X_scaled = scaler.transform(X_latest)
 
 # Predicción
-df['predicted_visibility_next_hour'] = model.predict(X_scaled)
+latest['predicted_visibility_t+1'] = model.predict(X_scaled)
 
-# Exportar resultados
-df[['station', 'datetime', 'predicted_visibility_next_hour']].to_csv(OUTPUT_FILE, index=False)
-print("✅ Predicción completada solo con datos reales de hoy. Guardado en:", OUTPUT_FILE)
+# Guardar resultados
+latest[['station', 'datetime', 'wind_dir', 'wind_speed', 'visibility', 'predicted_visibility_t+1']].to_csv(OUTPUT_FILE, index=False)
+
+print("✅ Forecast completed. Results saved to:", OUTPUT_FILE)

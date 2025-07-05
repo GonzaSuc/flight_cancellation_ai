@@ -4,6 +4,7 @@ import pandas as pd
 import os
 
 PRONOSTICO_FILE = "forecast/predicted_visibility.csv"
+PRONOSTICO_FILE = "forecast/predicted_cloudbase.csv"
 MINIMOS_FILE = "data/processed/minimos_operacionales.csv"
 OUTPUT_FILE = "forecast/estado_pronosticado.csv"
 
