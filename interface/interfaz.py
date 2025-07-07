@@ -2,62 +2,72 @@ import tkinter as tk
 from tkinter import ttk
 import pandas as pd
 
-# Cargar archivos
+# Archivos actualizados
 estado_file = "data/processed/estado_vuelos.csv"
-visibilidad_file = "forecast/predicted_visibility.csv"
-cloudbase_file = "forecast/predicted_cloudbase.csv"
+visibilidad_file = "forecast/output/visibility_forecast.csv"
+cloudbase_file = "forecast/output/cloudbase_forecast.csv"
 alertas_file = "forecast/alerts.csv"
 
-# Cargar data
-estado_df = pd.read_csv(estado_file)
-vis_df = pd.read_csv(visibilidad_file)
-cld_df = pd.read_csv(cloudbase_file)
-alert_df = pd.read_csv(alertas_file)
+# Crear ventana
+ventana = tk.Tk()
+ventana.title("Estado de Vuelos por Clima")
+ventana.geometry("500x300")
+ventana.configure(bg="#f0f0f0")
 
-# Lista única de aeropuertos
-aeropuertos = sorted(estado_df["station"].unique())
+# Etiqueta de título
+titulo = tk.Label(ventana, text="🛬 Estado Actual de Vuelos", font=("Helvetica", 16, "bold"), bg="#f0f0f0")
+titulo.pack(pady=10)
 
-# Función para mostrar info
+# Lista de aeropuertos disponibles
+aeropuertos = ['SPQU', 'SPRU', 'SPZO', 'SPJR', 'SPHZ']
+
+# Combobox para seleccionar aeropuerto
+combo = ttk.Combobox(ventana, values=aeropuertos, state="readonly", font=("Helvetica", 12))
+combo.set("Selecciona un aeropuerto")
+combo.pack(pady=10)
+
+# Etiquetas de salida
+label_estado = tk.Label(ventana, text="", font=("Helvetica", 12), bg="#f0f0f0")
+label_vis = tk.Label(ventana, text="", font=("Helvetica", 12), bg="#f0f0f0")
+label_cld = tk.Label(ventana, text="", font=("Helvetica", 12), bg="#f0f0f0")
+label_alerta = tk.Label(ventana, text="", font=("Helvetica", 12, "bold"), fg="red", bg="#f0f0f0")
+
+label_estado.pack(pady=2)
+label_vis.pack(pady=2)
+label_cld.pack(pady=2)
+label_alerta.pack(pady=5)
+
+# Función principal
 def mostrar_info():
     aeropuerto = combo.get()
 
-    estado = estado_df[estado_df["station"] == aeropuerto].iloc[-1]["estado_vuelo"]
-    vis = vis_df[vis_df["station"] == aeropuerto].iloc[-1]["predicted_visibility_next_hour"]
-    cld_m = cld_df[cld_df["station"] == aeropuerto].iloc[-1]["cloudbase_t+1"]
-    cld_ft = cld_m * 3.28084  # convertir metros a pies
+    # Leer archivos
+    estado_df = pd.read_csv(estado_file)
+    vis_df = pd.read_csv(visibilidad_file)
+    cld_df = pd.read_csv(cloudbase_file)
+    alert_df = pd.read_csv(alertas_file)
 
+    # Obtener últimos registros por aeropuerto
+    estado = estado_df[estado_df["station"] == aeropuerto].iloc[-1]["estado_vuelo"]
+    vis = vis_df[vis_df["station"] == aeropuerto].iloc[-1]["predicted_visibility_t+1"]
+    cld_m = cld_df[cld_df["station"] == aeropuerto].iloc[-1]["predicted_clouds_t+1"]
+    cld_ft = cld_m * 3.28084  # convertir a pies
+
+    # Intentar leer alerta si existe
     try:
         alerta = alert_df[alert_df["station"] == aeropuerto].iloc[-1]["alerta"]
     except:
         alerta = "Sin alerta generada"
 
+    # Mostrar en etiquetas
     label_estado.config(text=f"Estado actual: {estado}")
     label_vis.config(text=f"Visibilidad +1h: {int(vis)} m")
     label_cld.config(text=f"Techo de nubes +1h: {int(cld_ft)} ft")
     label_alerta.config(text=f"🚨 Alerta: {alerta}")
 
-# Interfaz
-ventana = tk.Tk()
-ventana.title("Predicción y Alertas de Vuelo")
-ventana.geometry("450x300")
+# Botón de acción
+boton = tk.Button(ventana, text="Consultar estado", command=mostrar_info, font=("Helvetica", 12), bg="#4CAF50", fg="white")
+boton.pack(pady=10)
 
-tk.Label(ventana, text="Selecciona un aeropuerto:").pack(pady=10)
-
-combo = ttk.Combobox(ventana, values=aeropuertos)
-combo.pack()
-
-tk.Button(ventana, text="Mostrar información", command=mostrar_info).pack(pady=10)
-
-label_estado = tk.Label(ventana, text="", font=("Arial", 12))
-label_estado.pack()
-
-label_vis = tk.Label(ventana, text="", font=("Arial", 12))
-label_vis.pack()
-
-label_cld = tk.Label(ventana, text="", font=("Arial", 12))
-label_cld.pack()
-
-label_alerta = tk.Label(ventana, text="", font=("Arial", 12), fg="red")
-label_alerta.pack(pady=10)
-
+# Ejecutar interfaz
 ventana.mainloop()

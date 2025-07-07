@@ -41,7 +41,7 @@ X_scaled = scaler.transform(X_latest)
 # Predicción
 latest['predicted_visibility_t+1'] = model.predict(X_scaled)
 
-# Guardar resultados
-latest[['station', 'datetime', 'wind_dir', 'wind_speed', 'visibility', 'predicted_visibility_t+1']].to_csv(OUTPUT_FILE, index=False)
+# Guardar solo columnas solicitadas
+latest[['station', 'datetime', 'visibility', 'predicted_visibility_t+1']].to_csv(OUTPUT_FILE, index=False)
 
 print("✅ Forecast completed. Results saved to:", OUTPUT_FILE)
